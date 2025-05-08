@@ -20,154 +20,214 @@ def sign_in(account_pwd_list):
             user, pwd = parts
 
             print(f"正在处理用户: {user}")
-            r = requests.get('https://bbs.binmt.cc/misc.php?mod=mobile', timeout=5)
-            aa = r.text
-            bb = r.cookies
-            test1 = r'saltkey=(.*?) for'
-            saltkey = re.findall(test1, str(bb))[0]
-            rule = r'formhash=(.*?)&amp'
-            formhash = re.findall(rule, aa)[0]
-            P1 = ('formhash=' + formhash + (
-                '&referer=https%3A%2F%2Fbbs.binmt.cc%2Fk_misign-sign.html&fastloginfield=username'
-                '&cookietime=31104000&username=') + user + '&password=' + pwd +
+            
+            try:
+                r = requests.get('https://bbs.binmt.cc/misc.php?mod=mobile', timeout=10)
+                print(f"请求返回状态码: {r.status_code}")
+                aa = r.text
+                bb = r.cookies
+                
+                # 检查cookie
+                if not bb:
+                    print("警告: 没有获取到cookie")
+                    
+                # 查找saltkey (增加调试信息并优化正则)
+                print("尝试获取saltkey...")
+                cookies_str = str(bb)
+                print(f"Cookies: {cookies_str}")
+                
+                # 更改正则表达式匹配方式
+                saltkey = None
+                for cookie in bb:
+                    if 'saltkey' in cookie.name:
+                        saltkey = cookie.value
+                        break
+                        
+                if not saltkey:
+                    # 尝试旧方法提取
+                    test1 = r'saltkey=(.*?) for'
+                    saltkey_matches = re.findall(test1, cookies_str)
+                    if saltkey_matches:
+                        saltkey = saltkey_matches[0]
+                    else:
+                        print("无法提取saltkey，尝试另一种方法...")
+                        # 尝试更宽松的正则表达式
+                        test1_alt = r'saltkey=([^;]+)'
+                        saltkey_matches = re.findall(test1_alt, cookies_str)
+                        if saltkey_matches:
+                            saltkey = saltkey_matches[0]
+                        else:
+                            print("错误: 无法从响应中提取saltkey")
+                            continue
+                
+                print(f"获取到saltkey: {saltkey}")
+                
+                # 提取formhash (添加更多调试信息和错误处理)
+                rule = r'formhash=(.*?)&amp'
+                formhash_matches = re.findall(rule, aa)
+                if not formhash_matches:
+                    print("错误: 无法提取formhash，尝试更宽松的正则表达式...")
+                    # 尝试更宽松的正则表达式
+                    rule_alt = r'formhash=([^&]+)'
+                    formhash_matches = re.findall(rule_alt, aa)
+                    if not formhash_matches:
+                        print("错误: 使用宽松正则仍无法提取formhash，跳过此账号")
+                        continue
+                
+                formhash = formhash_matches[0]
+                print(f"获取到formhash: {formhash}")
+                
+                P1 = ('formhash=' + formhash + (
+                    '&referer=https%3A%2F%2Fbbs.binmt.cc%2Fk_misign-sign.html&fastloginfield=username'
+                    '&cookietime=31104000&username=') + user + '&password=' + pwd +
                   '&questionid=0&answer=&submit=true')
-            headers1 = {
-                'cookie': 'cQWy_2132_saltkey=' + saltkey,
-                'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
-            }
-            res = requests.post(
-                'https://bbs.binmt.cc/member.php?mod=logging&action=login&loginsubmit=yes&loginhash=&handlekey=loginform'
-                '&inajax=1',
-                data=P1, headers=headers1, timeout=5)
-            cx = res.text
-            cv = res.cookies
-            testx = r"sign-sign.html', '(.*?)，现在将转入登录"
-            test2 = r'cQWy_2132_auth=(.*?) for bbs.binmt.cc'
-            cQWy_2132_auth = re.findall(test2, str(cv))[0]
-            logn = re.findall(testx, str(cx))[0]
-            print(f"用户 {user} 登录: {logn}")
+                headers1 = {
+                    'cookie': 'cQWy_2132_saltkey=' + saltkey,
+                    'content-type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                }
+                
+                print("正在发送登录请求...")
+                res = requests.post(
+                    'https://bbs.binmt.cc/member.php?mod=logging&action=login&loginsubmit=yes&loginhash=&handlekey=loginform'
+                    '&inajax=1',
+                    data=P1, headers=headers1, timeout=10)
+                    
+                print(f"登录请求状态码: {res.status_code}")
+                cx = res.text
+                cv = res.cookies
+                
+                # 提取登录结果
+                testx = r"sign-sign.html', '(.*?)，现在将转入登录"
+                logn_matches = re.findall(testx, cx)
+                
+                if not logn_matches:
+                    print("警告: 无法从登录响应中提取登录结果")
+                    print(f"登录响应: {cx[:200]}...")  # 打印部分响应用于调试
+                    
+                    # 尝试使用更宽松的正则表达式
+                    testx_alt = r"'(.*?)，现在将转入"
+                    logn_matches = re.findall(testx_alt, cx)
+                    if not logn_matches:
+                        print("错误: 无法确认登录结果，但将继续尝试")
+                        logn = "未知登录结果"
+                    else:
+                        logn = logn_matches[0]
+                else:
+                    logn = logn_matches[0]
+                
+                print(f"用户 {user} 登录: {logn}")
+                
+                # 提取auth cookie
+                test2 = r'cQWy_2132_auth=(.*?) for bbs.binmt.cc'
+                auth_matches = re.findall(test2, str(cv))
+                
+                if not auth_matches:
+                    print("警告: 无法提取auth cookie，尝试其他匹配方式...")
+                    # 尝试更宽松的正则表达式
+                    test2_alt = r'cQWy_2132_auth=([^;]+)'
+                    auth_matches = re.findall(test2_alt, str(cv))
+                    
+                    if not auth_matches:
+                        # 检查所有cookie
+                        cQWy_2132_auth = None
+                        for cookie in cv:
+                            if 'auth' in cookie.name:
+                                cQWy_2132_auth = cookie.value
+                                break
+                        
+                        if not cQWy_2132_auth:
+                            print("错误: 无法提取auth cookie，可能登录失败，跳过此账号")
+                            continue
+                    else:
+                        cQWy_2132_auth = auth_matches[0]
+                else:
+                    cQWy_2132_auth = auth_matches[0]
+                
+                print(f"获取到auth: {cQWy_2132_auth}")
 
-            # 获取Formhash
-            headers2 = {
-                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,'
-                          'application/signed-exchange;v=b3;q=0.9',
-                'cookie': 'cQWy_2132_saltkey=' + saltkey + ';cQWy_2132_auth=' + cQWy_2132_auth
-            }
-            r1 = requests.get('https://bbs.binmt.cc/k_misign-sign.html', headers=headers2, timeout=5)
-            cc = r1.text
-            rule11 = r'formhash=(.*?)&amp'
-            formhash11 = re.findall(rule11, cc)[0]
+                # 获取Formhash
+                headers2 = {
+                    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,'
+                              'application/signed-exchange;v=b3;q=0.9',
+                    'cookie': 'cQWy_2132_saltkey=' + saltkey + ';cQWy_2132_auth=' + cQWy_2132_auth
+                }
+                
+                print("正在获取签到页面...")
+                r1 = requests.get('https://bbs.binmt.cc/k_misign-sign.html', headers=headers2, timeout=10)
+                print(f"获取签到页面状态码: {r1.status_code}")
+                
+                cc = r1.text
+                rule11 = r'formhash=(.*?)&amp'
+                formhash11_matches = re.findall(rule11, cc)
+                
+                if not formhash11_matches:
+                    print("错误: 无法从签到页面提取formhash，尝试更宽松的正则表达式...")
+                    # 尝试更宽松的正则表达式
+                    rule11_alt = r'formhash=([^&]+)'
+                    formhash11_matches = re.findall(rule11_alt, cc)
+                    if not formhash11_matches:
+                        print("错误: 无法提取签到formhash，跳过此账号")
+                        continue
+                        
+                formhash11 = formhash11_matches[0]
+                print(f"获取到签到formhash: {formhash11}")
 
-            ##签到
-            P3 = {
-                'operation': 'qiandao',
-                'formhash': formhash11,
-                'cookie': 'cQWy_2132_saltkey=' + saltkey + ';cQWy_2132_auth=' + cQWy_2132_auth
-            }
-            headers3 = {
-                'cookie': P3['cookie']
-            }
+                ##签到
+                P3 = {
+                    'operation': 'qiandao',
+                    'formhash': formhash11,
+                    'cookie': 'cQWy_2132_saltkey=' + saltkey + ';cQWy_2132_auth=' + cQWy_2132_auth
+                }
+                headers3 = {
+                    'cookie': P3['cookie']
+                }
 
-            res = requests.get('https://bbs.binmt.cc/k_misign-sign.html', params=P3, headers=headers3, timeout=5)
-            if res.status_code == 200:
-                r = res.text
-                z = r"(?<=CDATA).*?.\]"
-                m = re.search(z, r)
-                print(f'用户 {user} 签到结果:', m[0] if m else "签到失败")
+                print("正在发送签到请求...")
+                res = requests.get('https://bbs.binmt.cc/k_misign-sign.html', params=P3, headers=headers3, timeout=10)
+                print(f"签到请求状态码: {res.status_code}")
+                
+                if res.status_code == 200:
+                    r = res.text
+                    z = r"(?<=CDATA).*?.\]"
+                    m = re.search(z, r)
+                    
+                    if m:
+                        print(f'用户 {user} 签到结果:', m[0])
+                    else:
+                        print(f"用户 {user} 签到结果: 无法提取签到结果，但请求成功")
+                        # 检查是否有其他可能的结果指示
+                        if "已签到" in r or "签到成功" in r:
+                            print(f"用户 {user} 可能已成功签到")
+                else:
+                    print(f"用户 {user} 签到请求失败，状态码: {res.status_code}")
+                    
+            except requests.exceptions.RequestException as req_err:
+                print(f"网络请求错误: {str(req_err)}")
+                
         except Exception as e:
             print(f"处理过程中出错: {str(e)}")
+            import traceback
+            print("错误详情:")
+            traceback.print_exc()
 
 
 def parse_command_line():
     """解析命令行参数，返回账号密码列表"""
-    # 打印接收到的命令行参数，便于调试
-    print(f"接收到的命令行参数: {sys.argv[1:]}")
-
     # 检查参数数量
     if len(sys.argv) <= 1:
         return []
-
+    
     # 获取命令行参数
     arg_str = ' '.join(sys.argv[1:])
-
-    # 最重要的处理方式：将输入按换行符分割（用于GitHub Actions环境变量）
-    # 这种格式是一行一个账号密码，非常适合从环境变量传入
-    if '\n' in arg_str:
-        accounts = []
-        for line in arg_str.strip().split('\n'):
-            line = line.strip()
-            if line:
-                accounts.append(line)
-        if accounts:
-            return accounts
-
-    # PowerShell特殊处理：检查是否将方括号分开了
-    if len(sys.argv) >= 3:
-        # 检查第一个参数是否以[开头，最后一个是否以]结尾
-        if sys.argv[1].startswith('[') and sys.argv[-1].endswith(']'):
-            # 将所有参数合并，移除首尾的方括号
-            combined = ' '.join(sys.argv[1:])
-            # 移除首尾的方括号
-            combined = combined[1:-1].strip()
-            # 分割成个别账号密码
-            accounts = []
-            for item in combined.split(','):
-                item = item.strip()
-                if item:
-                    accounts.append(item)
-            return accounts
-
-    # 处理普通逗号分隔的情况
-    if ',' in arg_str:
-        accounts = []
-        for item in arg_str.split(','):
-            item = item.strip()
-            if item:
-                accounts.append(item)
-        return accounts
-
-    # 处理空格分隔的情况（多个账号密码直接用空格分隔）
-    if ' ' in arg_str and '--' in arg_str:
-        accounts = []
-        for item in arg_str.split():
-            if '--' in item:
-                accounts.append(item.strip())
-        if accounts:
-            return accounts
-
-    # 保留原始的数组处理逻辑，以防万一
-    if arg_str.startswith('[') and arg_str.endswith(']'):
-        # 处理方括号格式
-        content = arg_str[1:-1].strip()
-        if not content:
-            return []
-
-        accounts = []
-        for item in content.split(','):
-            item = item.strip().strip('"\'')  # 移除引号
-            if item:
-                accounts.append(item)
-        return accounts
-
-    elif arg_str.startswith('{') and arg_str.endswith('}'):
-        # 处理花括号格式
-        content = arg_str[1:-1].strip()
-        if not content:
-            return []
-
-        accounts = []
-        for item in content.split(','):
-            item = item.strip().strip('"\'')  # 移除引号
-            if item:
-                accounts.append(item)
-        return accounts
-
-    # 如果没有识别出多个账号，但参数有效，视为单个账号密码
-    if '--' in arg_str:
-        return [arg_str.strip()]
-
-    # 如果都不匹配，返回空列表
-    return []
+    
+    # 按换行符分割，一行一个账号密码（适合GitHub Actions环境变量）
+    accounts = []
+    for line in arg_str.split('\n'):
+        line = line.strip()
+        if line:
+            accounts.append(line)
+    
+    return accounts
 
 
 if __name__ == "__main__":
@@ -179,4 +239,5 @@ if __name__ == "__main__":
     else:
         print("请提供账号密码列表参数")
         print("用法示例:")
-        print("1. 一行一个账号密码（GitHub Actions环境变量格式）:")
+        print("python index.py \"账号1--密码1\n账号2--密码2\n账号3--密码3\"")
+        print("在GitHub Actions中使用环境变量格式，每行一个账号密码")
