@@ -15,15 +15,20 @@ jobs:
 
     steps:
     - name: 检出代码
-    - uses: actions/checkout@v4
-    - name: 安装Python和依赖
+      uses: actions/checkout@v4
+      
+    - name: 设置Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+        
+    - name: 安装依赖
       run: |
-        sudo apt-get update
-        sudo apt-get install -y python3 python3-pip
-        sudo pip3 install requests
+        python -m pip install --upgrade pip
+        pip install requests
 
     - name: 显示Python版本
-      run: python3 --version
+      run: python --version
 
     - name: 输出调试信息
       run: |
@@ -34,10 +39,10 @@ jobs:
       if: "${{ github.event.inputs.test_accounts != '' }}"
       run: |
         echo "使用手动输入的测试账号"
-        python3 ./index.py "${{ github.event.inputs.test_accounts }}"
+        python ./index.py "${{ github.event.inputs.test_accounts }}"
 
     - name: 测试环境变量中的账号
       if: "${{ github.event.inputs.test_accounts == '' }}"
       run: |
         echo "使用环境变量中的账号"
-        python3 ./index.py "${{ secrets.MTUSER }}" 
+        python ./index.py "${{ secrets.MTUSER }}" 

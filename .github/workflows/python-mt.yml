@@ -4,8 +4,8 @@ name: 'MT论坛自动签到'
 
 on:
   schedule:
-    - cron: '0 0 * * *' #每天UTC时间0点执行（北京时间8点）
-  workflow_dispatch:  #允许手动触发
+    - cron: '0 0 * * *' # 每天UTC时间0点执行（北京时间8点）
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   sign_in:
@@ -13,11 +13,24 @@ jobs:
 
     steps:
     - name: 检出代码
-    - uses: actions/checkout@v4
-
-    - name: 安装Python和依赖
-      run: sudo apt-get update && sudo apt-get install -y python3 python3-pip && sudo pip3 install requests
+      uses: actions/checkout@v4
+      
+    - name: 设置Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+        
+    - name: 安装依赖
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+        
+    - name: 显示环境信息
+      run: |
+        python --version
+        echo "当前工作目录: $(pwd)"
+        ls -la
 
     - name: 执行签到程序
-      run: python3 ./index.py "${{ secrets.MTUSER }}"
+      run: python ./index.py "${{ secrets.MTUSER }}"
       # 环境变量MTUSER中按行存储多个账号密码，每行格式为username--password

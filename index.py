@@ -2,6 +2,7 @@ import requests
 import re
 import sys
 import time
+import os
 
 
 def sign_in(account_pwd_list):
@@ -385,78 +386,98 @@ def sign_in(account_pwd_list):
 
 
 def parse_command_line():
-    """解析命令行参数，返回账号密码列表"""
-    # 检查参数数量
+    """解析命令行参数或环境变量，返回账号密码列表"""
+    print("开始解析账号信息...")
+    
+    # 首先尝试直接从MTUSER环境变量获取
+    env_accounts = os.environ.get('MTUSER')
+    if env_accounts:
+        print("从环境变量MTUSER中检测到账号信息")
+        lines = env_accounts.strip().split('\n')
+        accounts = []
+        for line in lines:
+            line = line.strip()
+            if line:
+                accounts.append(line)
+        print(f"从环境变量解析出 {len(accounts)} 个账号")
+        
+        # 验证账号格式
+        valid_accounts = validate_accounts(accounts)
+        return valid_accounts
+    
+    # 如果没有找到环境变量，尝试从命令行参数获取
     if len(sys.argv) <= 1:
+        print("未提供命令行参数")
         return []
     
-    # 获取命令行参数（屏蔽实际内容，避免泄露敏感信息）
-    print("解析命令行参数...")
-    arg_str = ' '.join(sys.argv[1:])
-    print(f"参数长度: {len(arg_str)} 字符")
+    # 获取命令行参数
+    print("从命令行参数中获取账号信息")
+    cmd_arg = ' '.join(sys.argv[1:])
+    print(f"命令行参数长度: {len(cmd_arg)} 字符")
     
-    # 按换行符分割，一行一个账号密码
+    # 尝试按换行符分割
+    if '\n' in cmd_arg:
+        lines = cmd_arg.split('\n')
+    else:
+        lines = [cmd_arg]  # 单行参数
+    
+    # 处理可能的特殊情况
     accounts = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # 如果一行中可能包含多个账号（用逗号、分号或空格分隔）
+        if ',' in line:
+            for item in line.split(','):
+                item = item.strip()
+                if item:
+                    accounts.append(item)
+        elif ';' in line and '--' not in line:  # 确保不是账号密码中的分号
+            for item in line.split(';'):
+                item = item.strip()
+                if item:
+                    accounts.append(item)
+        else:
+            accounts.append(line)
     
-    # 尝试多种可能的换行符
-    if '\n' in arg_str:
-        for line in arg_str.split('\n'):
-            line = line.strip()
-            if line:
-                accounts.append(line)
-        print(f"使用\\n换行符解析到 {len(accounts)} 个账号")
-    # 使用\r\n分割（Windows风格换行）
-    elif '\r\n' in arg_str:
-        for line in arg_str.split('\r\n'):
-            line = line.strip()
-            if line:
-                accounts.append(line)
-        print(f"使用\\r\\n换行符解析到 {len(accounts)} 个账号")
-    # 如果没有检测到换行符，但包含--分隔符，可能是单个账号
-    elif '--' in arg_str:
-        accounts = [arg_str.strip()]
-        print("检测到单个账号")
-    # 其他情况，尝试使用其他分隔符
-    else:
-        # 尝试使用逗号、分号等常见分隔符
-        for sep in [',', ';', ' ']:
-            if sep in arg_str:
-                for item in arg_str.split(sep):
-                    item = item.strip()
-                    if '--' in item:  # 确认是账号密码格式
-                        accounts.append(item)
-                if accounts:
-                    print(f"使用分隔符 '{sep}' 解析到 {len(accounts)} 个账号")
-                    break
+    print(f"从命令行参数解析出 {len(accounts)} 个账号")
     
-    # 打印解析结果（已屏蔽敏感信息）
-    if accounts:
-        print(f"成功解析出 {len(accounts)} 个账号")
-        
-        # 检查每个账号的格式
-        valid_accounts = []
-        for acc in accounts:
-            if '--' in acc:
-                parts = acc.split('--')
-                if len(parts) == 2 and parts[0] and parts[1]:
-                    valid_accounts.append(acc)
-                    print(f"账号格式正确: 用户名={parts[0][:2]}*** 密码长度={len(parts[1])}")
+    # 验证账号格式
+    valid_accounts = validate_accounts(accounts)
+    return valid_accounts
+
+
+def validate_accounts(accounts):
+    """验证账号格式并返回有效账号"""
+    valid_accounts = []
+    
+    for acc in accounts:
+        if '--' in acc:
+            parts = acc.split('--')
+            if len(parts) == 2 and parts[0].strip() and parts[1].strip():
+                valid_accounts.append(acc)
+                username = parts[0].strip()
+                # 打印账号信息时部分遮盖用户名以增加安全性
+                if len(username) > 3:
+                    masked_username = username[:2] + '*' * (len(username) - 2)
                 else:
-                    print(f"账号格式错误，跳过: {acc}")
+                    masked_username = username[:1] + '*' * (len(username) - 1)
+                print(f"账号格式正确: 用户名={masked_username} 密码长度={len(parts[1].strip())}")
             else:
-                print(f"账号缺少--分隔符，跳过: {acc}")
-        
-        accounts = valid_accounts
-        print(f"格式检查后剩余 {len(accounts)} 个有效账号")
-    else:
-        print("未解析出任何账号")
+                print(f"账号格式错误（分隔后不是两个有效部分），跳过")
+        else:
+            print(f"账号缺少--分隔符，跳过")
     
-    return accounts
+    print(f"格式检查后剩余 {len(valid_accounts)} 个有效账号")
+    return valid_accounts
 
 
 if __name__ == "__main__":
     print("MT论坛自动签到程序开始运行...")
     print(f"Python版本: {sys.version}")
+    print(f"当前工作目录: {os.getcwd()}")
     print("=" * 50)
     
     account_pwd_list = parse_command_line()
@@ -465,10 +486,16 @@ if __name__ == "__main__":
         sign_in(account_pwd_list)
         print("所有账号处理完成！")
     else:
-        print("请提供账号密码列表参数")
+        print("未提供有效的账号密码")
         print("用法示例:")
-        print("python index.py \"账号1--密码1\n账号2--密码2\n账号3--密码3\"")
-        print("在GitHub Actions中使用环境变量格式，每行一个账号密码")
+        print("1. 通过环境变量设置账号（GitHub Actions）:")
+        print("   设置名为MTUSER的环境变量，每行一个账号密码对")
+        print("   例如: 账号1--密码1\\n账号2--密码2")
+        print("")
+        print("2. 通过命令行参数:")
+        print("   python index.py \"账号1--密码1\"")
+        print("   或多个账号:")
+        print("   python index.py \"账号1--密码1\\n账号2--密码2\"")
     
     print("=" * 50)
     print("MT论坛自动签到程序执行结束")
