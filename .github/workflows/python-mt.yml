@@ -3,9 +3,10 @@
 name: 'MT论坛自动签到'
 
 on:
-  schedule:
-    - cron: '0 0 * * *' # 每天UTC时间0点执行（北京时间8点）
-  workflow_dispatch:  # 允许手动触发
+  # 注释掉schedule部分，关闭定时执行
+  # schedule:
+  #   - cron: '0 0 * * *' # 每天UTC时间0点执行（北京时间8点）
+  workflow_dispatch:  # 只允许手动触发
 
 jobs:
   sign_in:
